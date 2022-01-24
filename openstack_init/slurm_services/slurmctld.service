@@ -1,0 +1,9 @@
+[Unit]
+Description = SLURM main controller service
+Wants = munge.service
+
+[Service]
+ExecStart = /usr/bin/slurmctld.sh
+
+[Install]
+WantedBy = multi-user.target

@@ -1,0 +1,9 @@
+[Unit]
+Description = SLURM node controller service
+Wants = munge.service
+
+[Service]
+ExecStart = /usr/bin/slurmd.sh
+
+[Install]
+WantedBy = multi-user.target

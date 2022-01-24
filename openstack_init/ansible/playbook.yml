@@ -1,0 +1,10 @@
+---
+- name: install-master
+  hosts: 
+    - slurm-master
+  roles:
+    - slurm-master
+  become: no # run in no root user
+  vars: 
+    ansible_user: centos
+
