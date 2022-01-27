@@ -1,0 +1,23 @@
+slurm-git-repo: https://github.com/SchedMD/slurm.git
+slurm-version: 21.08.2
+compute-key-name: computekey
+## just dev, should be appended by the boot script
+slurm-install-folder: /tmp/slurm-install
+slurm-openstack-files-path: /tmp/slurm-install/slurm-openstack/files
+slurm-openstack-services-path: /tmp/slurm-install/slurm-openstack/services
+slurm-openstack-scripts-path: /tmp/slurm-install/slurm-openstack/scripts
+ssh-compute-priv: ''
+slurm-master:
+  hosts:
+      -
+        name: slurmMaster
+        ip: xxx.xxx.104.216
+slurm-slaves:
+  hosts:
+    - 
+      name: compute1
+      ip: xxx.xxx.2.168
+    -
+      name: compute2
+      ip: xxx.xxx.2.118
+
