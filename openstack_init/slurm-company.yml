@@ -25,10 +25,10 @@ parameters:
     type: string
     label: Key Name for New Key Pair
     description: Please enter the name of new key pair for communication between nodes
-  # git_project_access_token:
-  #   type: string
-  #   label: Git access token
-  #   description: Please enter the git access token with pull permission for project slurm-openstack
+  git_project_address:
+    type: string
+    label: Git project address
+    description: Please enter the git url for slurm-openstack-devel-plugin or your own modified repository
   
 resources:
   slurm_company_ssh_key:
@@ -49,7 +49,7 @@ resources:
         ips:
           compute1: { get_attr: [compute1, first_address] }
           compute2: { get_attr: [compute2, first_address] } # user should add metadata ip
-        access_token: { get_param: git_project_access_token }
+        git_address: { get_param: git_project_address }
         #compute_ssh_key: { get_attr: [slurm_company_ssh_key, private_key] }
       networks:
         - network: { get_param: def_network }
@@ -95,13 +95,14 @@ resources:
 
             __MASTER_NAME=slurmMaster
     
+            _GIT_ADDRESS=`jq -r ".meta.git_address" $meta_file`
             _MASTER_IP=`python3 -c "import socket; print(socket.gethostbyname(socket.gethostname()))"`
 
 
             #repo with playbook and role for ansible
             __slurm_repo_dir="$install_dir/slurm-openstack"
             mkdir $__slurm_repo_dir
-            git clone "https://github.com/jsw0011/slurm-openstack-devel-plugin.git" $__slurm_repo_dir 
+            git clone "$_GIT_ADDRESS" $__slurm_repo_dir 
             
             __scripts_path=$__slurm_repo_dir/openstack_init/scripts
             chmod +x $__scripts_path/*
