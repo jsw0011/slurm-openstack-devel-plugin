@@ -51,11 +51,11 @@ SlurmdLogFile=/var/log/slurmd.log
 ControlAddr={{ slurm_master_machines[0].ip }}
 ControlMachine={{ slurm_master_machines[0].name }}
 
-SlurmctldParameters=enable_configless # maybe issue with munge keys
+#SlurmctldParameters=enable_configless # maybe issue with munge keys
 
 # COMPUTE NODES
 
 PartitionName=debug Nodes=ALL Default=YES MaxTime=INFINITE State=UP
 {% for machine in  slurm_slaves_machines %}
-NodeName={{ machine.name }} CPUs={{ compute_cpus_count }} NodeAddr={{ machine.ip }} State=UNKNOWN 
+NodeName={{ machine.name }} CPUs={{ compute_cpus_count }} NodeAddr={{ machine.ip }} State=UNKNOWN
 {% endfor %}

@@ -11,8 +11,6 @@ simply adapted for other operating systems supported by the Slurm (batch schedul
 Read the [`article`](https://github.com/jsw0011/slurm-openstack-devel-plugin/blob/main/2022-PPFIT-SlurmOpenStackPluginDevel.pdf) for more information.
 
 Installation can be watched by `tail -f /var/log/cloud-init-output.log` in master node.
-
-!!! Important after installation set shell variable `SLURM_CONF=/etc/slurm/slurm.conf` 
 ## Structure
 ```
  |- old_scripts -- contains scripts, which helped me to develop the automation script.
@@ -23,3 +21,7 @@ Installation can be watched by `tail -f /var/log/cloud-init-output.log` in maste
     |- slurm_services -- systemV services used while setting up Slurm
 
 ```
+
+# Tested images
+- CentOS-7
+- CentOS-Stream-8_20210210

@@ -207,6 +207,21 @@
     name: slurmctld
     state: started
 
+- name: create /etc/environment if not exists 
+  become: True
+  ansible.builtin.file:
+    state: touch
+    path: /etc/environment
+    mode: '0644'
+- name: set global env variable SLURM_CONF
+  become: True
+  blockinfile:
+    path: /etc/environment
+    marker: "#SLURM CONF LOCATION - auto generated"
+    insertbefore: EOF
+    block: |
+      SLURM_CONF=/etc/slurm/slurm.conf
+
 ## shared variables
 - name: "Add shared variables to dummy host"
   add_host:
