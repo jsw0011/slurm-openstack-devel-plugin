@@ -3,11 +3,6 @@
 #   yum:
 #     name: '*'
 #     state: latest
-- name: enable powertools repositary
-  become: True
-  yum:
-    state: latest
-    enablerepo: powertools
 - name: install munge dependencies
   become: True
   yum:
@@ -15,21 +10,22 @@
       - openssl
       - openssl-libs
       - openssl-devel
-      - gcc
-      - git
-      - pkgconf
-      - make
       - munge
       - rng-tools
       - munge-devel
       - perl
       - python3
-      - firewalld
+      #- firewalld
     state: latest
+    enablerepo: powertools
 - name: install slurm dependencies
   become: True
   yum:
     name:
+      - pkgconf
+      - make
+      - git
+      - gcc
       - pam-devel
       - numactl
       - numactl-devel
@@ -43,10 +39,11 @@
 - name: check randomness
   shell: rngd -r /dev/urandom
 - name: generate munge key
+  become: True
   shell: /usr/sbin/create-munge-key -r
 - name: store munge key
   shell: cat /etc/munge/munge.key
-  register: munge-key
+  register: munge_key
 - name: set owner to munge user directories
   become: True
   ansible.builtin.file:
@@ -60,12 +57,11 @@
 - name: set owner to munge user of /run/munge
   become: True
   ansible.builtin.file:
-    path: 
-      - /run/munge
+    path: /run/munge
     owner: munge
     recurse: True
     mode: '0755'
-- name: set acces of munge key
+- name: set access for munge key
   become: True
   ansible.builtin.file:
     path: /etc/munge/munge.key
@@ -81,175 +77,124 @@
     name: munge
     enabled: True
     masked: no
-- name: stop munge service
+- name: start munge service
   become: True
   ansible.builtin.systemd:
     name: munge
     state: started
 
-- name: enable firewalld service
-  become: True
-  ansible.builtin.systemd:
-    name: firewalld
-    enabled: True
-    masked: no
-- name: stop firewalld service
-  become: True
-  ansible.builtin.systemd:
-    name: firewalld
-    state: started
-- name: get slurm cloned repo path
-  command: echo "{{ slurm-git-repo }}" | sed -r 's/(.*\/)([A-Za-z0-9\_\-]+).git/ \2 /'
-  register: slurm-git-repo-path
+# - name: enable firewalld service
+#   become: True
+#   ansible.builtin.systemd:
+#     name: firewalld
+#     enabled: True
+#     masked: no
+# - name: start firewalld service
+#   become: True
+#   ansible.builtin.systemd:
+#     name: firewalld
+#     state: started
+# - name: setup firewalld ports slurmctld
+#   become: True
+#   ansible.builtin.firewalld:
+#     port: "{{ item }}"
+#     permanent: True
+#     zone: public
+#     state: enabled
+#   loop:
+#     - 6817/tcp
+#     - 6817/udp
+#     - 7321/tcp
+#     - 7321/udp
+# - name: reload service firewalld
+#   become: True
+#   ansible.builtin.systemd:
+#     name: firewalld
+#     state: reloaded
 - name: clone slurm
   ansible.builtin.git:
-    repo: {{ slurm-git-repo }}
-    dest: {{ slurm-install-folder + "/slurm" }}
-    version: {{ slurm-version }}
+    repo: "{{ slurm_git_repo }}"
+    dest: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
+    version: "{{ slurm_tag }}"
 - name: configure installation
   command:
-    cmd: ./configure
-    chdir: {{ slurm-install-folder +  slurm-git-repo-path }}
-    argv:
-      - --with-munge
+    cmd: ./configure --with-munge
+    chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
 - name: compile slurm
   make:
-    chdir: "{{ slurm-install-folder +  slurm-git-repo-path }}"
+    chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
     target: all
 - name: check slurm compilation
   make:
-    chdir: "{{ slurm-install-folder +  slurm-git-repo-path }}"
+    chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
     target: check
 - name: install compiled slurm
   become: True
   make:
-    chdir: "{{ slurm-install-folder +  slurm-git-repo-path }}"
+    chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
     target: install
-- name: configure ssh key for installation
-  become: True
-  cmd:
-    - echo -e "{{ ssh-compute-priv  }}" | tee /home/{{ ansible_user }}/{{ compute-key-name }}
-- name: retreive cpu count of node
-  command:
-    cmd:
-      - "ssh -l {{ ansible_user }} -i /home/{{ ansible_user }}/{{ compute-key-name }} {{  slurm-slaves[0].name]  }} nproc"
-    register: compute-cpus-count
 - name: create /etc/slurm directory if not exists
   become: True
   ansible.builtin.file:
     path: /etc/slurm
     state: directory
     mode: '0755'
-- name: copy slurm.conf
-  become: True
-  copy:
-    src: "{{ slurm-openstack-files-path  }}/slurm.conf"
-    dest: /etc/slurm.conf
-- name: generate slurm configuration for nodes
-  command:
-    cmd: 
-      - 'python3 gen-slurm-conf-nodes.py "{{ slurm-master.hosts[0].name  }}" "{{ slurm-master.hosts[0].ip  }}" "{{ slurm-slaves.hosts | map(attribute=name) }}" "{{ slurm-slaves.hosts | map(attribute=ip) }}" {{ compute-cpus-count }}'
-    register: slurm-conf-nodes
-- name: add node configurations to slurm.comf
-  become: True
-  command:
-    cmd:
-      - 'echo -e "{{ slurm-conf-nodes }}" | tee -a /etc/slurm.conf'
 - name: add user slurm
   become: True
   ansible.builtin.user:
     name: slurm
-- name: create /var/spool/slurmctld and /var/spool/slurmd directory if not exists
+- name: prepare slurm.conf
   become: True
-  ansible.builtin.file:
-    path: 
-      - /var/spool/slurmctld
-      #- /var/spool/slurmd
-    state: directory
+  ansible.builtin.template:
+    src: "{{ slurm_openstack_templates_path }}/slurm.conf.j2"
+    dest: /etc/slurm/slurm.conf
+    owner: slurm
     mode: '0755'
-- name: set owner to slurm user of /var/spool/slurmctld and /var/spool/slurmd
-  become: True
-  ansible.builtin.file:
-    path: 
-      - /var/spool/slurmctld
-      #- /var/spool/slurmd
-    owner: slurm
-    recurse: True
-- name: touch and set owner to slurm user directories of /var/log/slurm_jobacct.log /var/log/slurm_jobcomp.log /var/log/slurmctld.log and /var/log/slurmd.log
-  become: True
-  ansible.builtin.file:
-    state: touch
-    path: 
-      - /var/log/slurm_jobacct.log
-      - /var/log/slurm_jobcomp.log
-      - /var/log/slurmctld.log
-      #- /var/log/slurmd.log
-    owner: slurm
-- name: setup firewalld ports slurmctld
-  become: True
-  ansible.posix.firewalld:
-    port: 6817/tcp
-    permanent: True
-    zone: public
-    state: enabled
-- name: setup firewalld ports slurmctld
-  become: True
-  ansible.posix.firewalld:
-    port: 6817/udp
-    permanent: True
-    zone: public
-    state: enabled
-#- name: setup firewalld ports slurmd
-#  become: True
-#  ansible.posix.firewalld:
-#    port: 6818/tcp
-#    permanent: True
-#    zone: public
-#    state: enabled
-#- name: setup firewalld ports slurmd
-#  become: True
-#  ansible.posix.firewalld:
-#    port: 6818/udp
-#    permanent: True
-#    zone: public
-#    state: enabled
-- name: setup firewalld ports
-  become: True
-  ansible.posix.firewalld:
-    port: 7321/tcp
-    permanent: True
-    zone: public
-    state: enabled
-- name: setup firewalld ports
-  become: True
-  ansible.posix.firewalld:
-    port: 7321/udp
-    permanent: True
-    zone: public
-    state: enabled
-- name: reload service firewalld
-  become: True
-  ansible.posix.systemd:
-    name: firewalld
-    state: reloaded
+- name: store slurm generated configuration
+  shell: cat /etc/slurm/slurm.conf
+  register: slurm_configuration
 - name: copy slurmctld.service
   become: True
   ansible.builtin.copy:
-    src: {{ slurm-openstack-files-path + "/slurmctld.service" }}
+    src: "{{ slurm_openstack_files_path }}/cgroup.conf"
+    dest: /etc/slurm/cgroup.conf
+    owner: slurm
+    mode: '0755'
+- name: create /var/spool/slurmctld directory if not exists
+  become: True
+  ansible.builtin.file:
+    path: /var/spool/slurmctld
+    state: directory
+    mode: '0755'
+    owner: slurm
+    recurse: True
+- name: touch and set owner to slurm user directories of /var/log/slurm_jobacct.log /var/log/slurm_jobcomp.log and /var/log/slurmctld.log
+  become: True
+  ansible.builtin.file:
+    state: touch
+    path: "{{ item }}"
+    owner: slurm
+  loop:
+    - /var/log/slurm_jobacct.log
+    - /var/log/slurm_jobcomp.log
+    - /var/log/slurmctld.log
+- name: copy slurmctld.service
+  become: True
+  ansible.builtin.copy:
+    src: "{{ slurm_openstack_services_path }}/slurmctld.service"
     dest: /etc/systemd/system/slurmctld.service
     owner: root
-    mode: '0755'
+    mode: '0664'
 - name: copy slurmctld service script
   become: True
   ansible.builtin.copy:
-    src: {{ slurm-openstack-files-path + "/slurmctld.sh" }}
+    src: "{{ slurm_openstack_services_path }}/slurmctld.sh"
     dest: /usr/bin/slurmctld.sh
     owner: root
     mode: '0700'
 - name: reset SElinux attributes
   become: True
   command: restorecon /usr/bin/slurmctld.sh
-  
 - name: enable slurmctld service
   become: True
   ansible.builtin.systemd:
@@ -261,3 +206,10 @@
   ansible.builtin.systemd:
     name: slurmctld
     state: started
+
+## shared variables
+- name: "Add shared variables to dummy host"
+  add_host:
+    name:   "ANSIBLE_SHARED_HOLDER_MASTER"
+    munge_key:  "{{ munge_key.stdout }}"
+    slurm_configuration:   "{{ slurm_configuration.stdout }}"

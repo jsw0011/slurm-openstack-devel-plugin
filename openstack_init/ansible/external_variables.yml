@@ -1,0 +1,10 @@
+slurm_git_repo: https://github.com/SchedMD/slurm.git
+slurm_version: 21.08.2
+slurm_tag: slurm-21-08-2-1
+slurm_git_repo_path: "{{ slurm_git_repo | basename | splitext | first }}"
+# slurm_install_folder: /tmp/slurm-install
+# slurm_openstack_files_path: /tmp/slurm-install/slurm-openstack/openstack_init/files
+# slurm_openstack_templates_path: /tmp/slurm-install/slurm-openstack/openstack_init/templates
+# slurm_openstack_services_path: /tmp/slurm-install/slurm-openstack/openstack_init/services
+# slurm_openstack_scripts_path: /tmp/slurm-install/slurm-openstack/openstack_init/scripts
+# ssh_compute_priv_key_file: ''

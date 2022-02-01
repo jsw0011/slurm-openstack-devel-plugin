@@ -1,0 +1,9 @@
+## just dev
+# slurm_master:
+    # hosts:
+        # - slurmMaster:
+# slurm_slaves:
+    # hosts:
+        # - compute[1:2]:
+## end dev
+## BEGIN GENERATED

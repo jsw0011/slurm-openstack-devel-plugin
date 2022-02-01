@@ -1,10 +1,32 @@
 ---
-- name: install-master
-  hosts: 
-    - slurm-master
-  roles:
-    - slurm-master
-  become: no # run in no root user
+- name: gather artifacts from slaves
+  hosts: slurm_slaves
+  connection: ssh
+  tasks:
+    - setup:
   vars: 
     ansible_user: centos
+    ansible_ssh_private_key_file: "{{ ssh_compute_priv_key_file }}"
+    ansible_ssh_common_args: -o StrictHostKeyChecking=no
+- name: install-master
+  hosts: localhost
+  connection: local
+  roles:
+    - slurm-master
+  become: False # run in no root user
+  vars: 
+    ansible_user: centos
+    compute_cpus_count: "{{ hostvars[groups['slurm_slaves'][0]]['ansible_facts']['processor_vcpus'] }}"
+- name: install-slaves
+  hosts: slurm_slaves
+  connection: ssh
+  roles:
+    - slurm-slave
+  become: False # run in no root user
+  vars: 
+    ansible_user: centos
+    munge_key: "{{ hostvars['ANSIBLE_SHARED_HOLDER_MASTER']['munge_key'] }}"
+    slurm_configuration: "{{ hostvars['ANSIBLE_SHARED_HOLDER_MASTER']['slurm_configuration'] }}"
+    ansible_ssh_private_key_file: "{{ ssh_compute_priv_key_file }}"
+    ansible_ssh_common_args: -o StrictHostKeyChecking=no
 

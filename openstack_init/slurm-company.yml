@@ -28,8 +28,8 @@ parameters:
   git_project_address:
     type: string
     label: Git project address
+    default: https://github.com/jsw0011/slurm-openstack-devel-plugin.git
     description: Please enter the git url for slurm-openstack-devel-plugin or your own modified repository
-  
 resources:
   slurm_company_ssh_key:
     type: OS::Nova::KeyPair
@@ -49,7 +49,6 @@ resources:
         ips:
           compute1: { get_attr: [compute1, first_address] }
           compute2: { get_attr: [compute2, first_address] } # user should add metadata ip
-        git_address: { get_param: git_project_address }
         #compute_ssh_key: { get_attr: [slurm_company_ssh_key, private_key] }
       networks:
         - network: { get_param: def_network }
@@ -80,62 +79,74 @@ resources:
           params: 
             ssh_private_key_temp: 
               get_attr: [slurm_company_ssh_key, private_key]
+            git_address: 
+              get_param: git_project_address
           template: |
             #!/usr/bin/bash
-            user_name=`whoami`
-            yum install -y python3 centos-release-ansible-29 epel-release jq git
 
-            install_dir="/tmp/slurm-install"
-            mkdir $install_dir
-            meta_file="$install_dir/meta_data.json"
+            yum makecache
+            yum install -y epel-release centos-release-ansible-29 python3 jq git
+            yum install -y ansible
+
+            __INSTALL_DIR="/tmp/slurm-install"
+            mkdir $__INSTALL_DIR
+            meta_file="$__INSTALL_DIR/meta_data.json"
             curl http://169.254.169.254/openstack/latest/meta_data.json > $meta_file # download metadata
 
             slave_ips=`jq -r ".meta.ips" $meta_file | jq -r ". | to_entries[].value"`
             slave_names=`jq -r ".meta.ips" $meta_file | jq -r ". | to_entries[].key"`
 
-            __MASTER_NAME=slurmMaster
+            __MASTER_NAME=masterNode
     
-            _GIT_ADDRESS=`jq -r ".meta.git_address" $meta_file`
+            _GIT_ADDRESS="git_address"
             _MASTER_IP=`python3 -c "import socket; print(socket.gethostbyname(socket.gethostname()))"`
 
-
             #repo with playbook and role for ansible
-            __slurm_repo_dir="$install_dir/slurm-openstack"
-            mkdir $__slurm_repo_dir
-            git clone "$_GIT_ADDRESS" $__slurm_repo_dir 
+            __SLURM_REPO_DIR="$__INSTALL_DIR/slurm-openstack"
+            mkdir $__SLURM_REPO_DIR
+            git clone "$_GIT_ADDRESS" $__SLURM_REPO_DIR 
             
-            __scripts_path=$__slurm_repo_dir/openstack_init/scripts
+            __scripts_path=$__SLURM_REPO_DIR/openstack_init/scripts
             chmod +x $__scripts_path/*
 
             #set hosts
-            sethostname $__MASTER_NAME
+            hostnamectl set-hostname $__MASTER_NAME #sethostname in centos
             
-            echo -e "$__MASTER_NAME $_MASTER_IP\n" | tee -a $install_dir/hosts
-            slave_hosts=`python3 $__scripts_path/gen-hosts.py "$slave_ips" "$slave_names"`
+            echo -e "$_MASTER_IP $__MASTER_NAME\n" | tee -a $__INSTALL_DIR/hosts
+            __SLAVE_HOSTS=`python3 $__scripts_path/gen-hosts.py "$slave_ips" "$slave_names"`
 
-            echo -e "$slave_hosts\n" | tee -a $install_dir/hosts
+            echo -e "$__SLAVE_HOSTS\n" | tee -a $__INSTALL_DIR/hosts
 
-            cat $install_dir/hosts | tee -a /etc/hosts
+            cat $__INSTALL_DIR/hosts | tee -a /etc/hosts
+            
+            __PRIV_KEY_PATH=/root/slurm-company_priv_key
+            touch $__PRIV_KEY_PATH && chmod 0400 $__PRIV_KEY_PATH
+            echo -e "ssh_private_key_temp\n" | tee "$__PRIV_KEY_PATH" # private key for ssh connection with slurm company
 
+            ____SLAVE_HOSTS_INVENTORY=`python3 $__scripts_path/gen-ansible-vars-vm-list.py "$slave_ips" "$slave_names"`
+            cp $__SLURM_REPO_DIR/openstack_init/ansible/inventory_template.yml $__SLURM_REPO_DIR/openstack_init/ansible/inventory.yml
 
-            ssh_priv_key="ssh_private_key_temp"
-            #`jq -r ".meta.compute_ssh_key" $meta_file`
+            __SLAVE_COUNT=`echo -e "$slave_names" | wc -l`
+            echo -e "
+            slurm_slaves:
+              hosts:
+                compute[1:$__SLAVE_COUNT]:
+            " >> $__SLURM_REPO_DIR/openstack_init/ansible/inventory.yml
+            echo -e "slurm_master_machines:
+              -
+                name: $__MASTER_NAME
+                ip: $_MASTER_IP
+            slurm_slaves_machines:
+            $____SLAVE_HOSTS_INVENTORY
+            ssh_compute_priv_key_file: /root/slurm-company_priv_key
+            slurm_install_folder: $__INSTALL_DIR
+            slurm_openstack_files_path: $__SLURM_REPO_DIR/openstack_init/files
+            slurm_openstack_services_path: $__SLURM_REPO_DIR/openstack_init/services
+            slurm_openstack_templates_path: $__SLURM_REPO_DIR/openstack_init/templates
+            slurm_openstack_scripts_path: $__scripts_path" | tee -a $__SLURM_REPO_DIR/openstack_init/ansible/external_variables.yml
 
-            slave_hosts_inventory=`python3 $__scripts_path/gen-ansible-inventory-vm-list.py "$slave_ips" "$slave_names"`
-
-            echo -e "slurm-master:
-                hosts:
-                    -
-                      name: $__MASTER_NAME
-                      ip: $_MASTER_IP
-                slurm-slaves:
-                    hosts:
-                $slave_hosts_inventory
-                ssh_compute_priv: "$ssh_priv_key"
-                slurm-install-folder: $install_dir
-                slurm-openstack-files-path: $__slurm_repo_dir/openstack_init/slurm-openstack/files
-                slurm-openstack-services-path: $__slurm_repo_dir/openstack_init/services
-                slurm-openstack-services-path: $__scripts_path" >> $__slurm_repo_dir/openstack_init/ansible/inventory.yml
+            # run ansible
+            ansible-playbook -vvv -i $__SLURM_REPO_DIR/openstack_init/ansible/inventory.yml -e @$__SLURM_REPO_DIR/openstack_init/ansible/external_variables.yml $__SLURM_REPO_DIR/openstack_init/ansible/playbook.yml
 outputs:
   slurm_company_priv_key:
     description: Private key
@@ -149,5 +160,3 @@ outputs:
   ip_compute2:
     description: IP address of compute node
     value: { get_attr: [compute2, first_address] }
-  #ips:
-   # description: 

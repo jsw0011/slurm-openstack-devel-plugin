@@ -8,5 +8,5 @@ slaveips=sys.argv[1].split('\n')
 slavenames=sys.argv[2].split('\n')
 out=[]
 for i, v in enumerate(slaveips):
-    out.append(f'            -\n              name: {slavenames[i]}\n              ip: {v}')
+    out.append(f'  -\n    name: {slavenames[i]}\n    ip: {v}')
 print('\n'.join(out))

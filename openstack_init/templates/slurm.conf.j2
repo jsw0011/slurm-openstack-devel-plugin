@@ -48,14 +48,14 @@ SlurmdLogFile=/var/log/slurmd.log
 #
 #
 # Control
-#ControlAddr=192.168.2.171
-#ControlMachine=slurmMaster
-SlurmctldParameters=enable_configless # maybe issue in munge keys
+ControlAddr={{ slurm_master_machines[0].ip }}
+ControlMachine={{ slurm_master_machines[0].name }}
+
+SlurmctldParameters=enable_configless # maybe issue with munge keys
 
 # COMPUTE NODES
 
 PartitionName=debug Nodes=ALL Default=YES MaxTime=INFINITE State=UP
-
-#NodeName=slurmMaster CPUs=1 NodeAddr=192.168.2.171 State=UNKNOWN 
-#NodeName=compute1 CPUs=2 NodeAddr=192.168.2.176 State=UNKNOWN
-#NodeName=compute2 CPUs=2 NodeAddr=192.168.2.111 State=UNKNOWN
+{% for machine in  slurm_slaves_machines %}
+NodeName={{ machine.name }} CPUs={{ compute_cpus_count }} NodeAddr={{ machine.ip }} State=UNKNOWN 
+{% endfor %}

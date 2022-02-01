@@ -1,3 +1,3 @@
 #!/usr/bin/sh
-SLURM="/usr/local/sbin/slurmctld"
+SLURM="/usr/local/sbin/slurmd"
 $SLURM -Df "/etc/slurm/slurm.conf"
