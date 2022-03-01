@@ -121,16 +121,16 @@
     cmd: ./configure --with-munge
     chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
 - name: compile slurm
-  make:
+  community.general.make:
     chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
     target: all
 - name: check slurm compilation
-  make:
+  community.general.make:
     chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
     target: check
 - name: install compiled slurm
   become: True
-  make:
+  community.general.make:
     chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
     target: install
 - name: create /etc/slurm directory if not exists
