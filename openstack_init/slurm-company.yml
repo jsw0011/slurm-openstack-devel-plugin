@@ -85,9 +85,8 @@ resources:
             #!/usr/bin/bash
 
             yum makecache
-            yum install -y epel-release centos-release-ansible-29 python3
-            yum install -y jq git
-            yum install -y ansible
+            yum install -y epel-release python3
+            yum install -y jq git ansible-2.9.27-1.el8.noarch ansible-collection-community-general.noarch
 
             __INSTALL_DIR="/tmp/slurm-install"
             mkdir $__INSTALL_DIR
