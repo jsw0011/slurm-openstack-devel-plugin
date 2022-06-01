@@ -11,6 +11,8 @@ simply adapted for other operating systems supported by the Slurm (batch schedul
 Read the [`article`](https://github.com/jsw0011/slurm-openstack-devel-plugin/blob/main/2022-PPFIT-SlurmOpenStackPluginDevel.pdf) for more information.
 
 Installation can be watched by `tail -f /var/log/cloud-init-output.log` in master node.
+User, who would like to e.g. `sbatch` executable or script, should be in the `slurm` group. JWT token can be obtained by `scontrol token username=<username>` as superuser.
+
 ## Structure
 ```
  |- old_scripts -- contains scripts, which helped me to develop the automation script.

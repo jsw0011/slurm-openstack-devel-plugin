@@ -2,6 +2,10 @@ slurm_git_repo: https://github.com/SchedMD/slurm.git
 slurm_version: 21.08.2
 slurm_tag: slurm-21-08-2-1
 slurm_git_repo_path: "{{ slurm_git_repo | basename | splitext | first }}"
+mariadb_root_pass: slurmdevendb~@
+mariadb_db_acc_name: slurm_acct_db
+slurm_user: slurm
+slurm_restapi_user: slurm_rest_api
 # slurm_install_folder: /tmp/slurm-install
 # slurm_openstack_files_path: /tmp/slurm-install/slurm-openstack/openstack_init/files
 # slurm_openstack_templates_path: /tmp/slurm-install/slurm-openstack/openstack_init/templates

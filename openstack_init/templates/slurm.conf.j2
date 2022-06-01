@@ -17,7 +17,7 @@ SlurmctldPidFile=/var/run/slurmctld.pid
 SlurmdPidFile=/var/run/slurmd.pid
 #SlurmdPort=6818
 SlurmdSpoolDir=/var/spool/slurmd
-SlurmUser=slurm
+SlurmUser={{ slurm_user }}
 #SlurmdUser=root
 StateSaveLocation=/var/spool/slurmctld
 SwitchType=switch/none
@@ -38,7 +38,9 @@ SelectTypeParameters=CR_Core
 #
 #
 # LOGGING AND ACCOUNTING
-AccountingStorageType=accounting_storage/none
+AccountingStorageType=accounting_storage/slurmdbd
+AccountingStorageHost={{ slurm_master_machines[0].name }}
+AccountingStorageUser={{ slurm_user }}
 #JobAcctGatherFrequency=30
 JobAcctGatherType=jobacct_gather/none
 #SlurmctldDebug=info
@@ -46,6 +48,8 @@ SlurmctldLogFile=/var/log/slurmctld.log
 #SlurmdDebug=info
 SlurmdLogFile=/var/log/slurmd.log
 #
+AuthAltTypes=auth/jwt
+AuthAltParameters=jwt_key=/var/spool/slurm/statesave/jwt_hs256.key
 #
 # Control
 ControlAddr={{ slurm_master_machines[0].ip }}

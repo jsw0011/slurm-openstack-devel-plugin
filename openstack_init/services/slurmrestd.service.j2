@@ -1,0 +1,16 @@
+[Unit]
+Description = SLURM main controller REST API Service
+After=network-online.target slurmctld.service
+Wants=network-online.target
+
+[Service]
+Restart=always
+Environment="SLURM_JWT=daemon"
+Environment="LD_LIBRARY_PATH=/usr/local/lib/:/usr/local/lib64/"
+ExecStart = /usr/local/sbin/slurmrestd -f "/etc/slurm/slurm.conf" $SLURMRESTD_OPTIONS :{{ slurm_rest_api_port }}
+Type = simple
+ExecReload=/bin/kill -HUP $MAINPID
+User = {{ slurm_restapi_user }}
+
+[Install]
+WantedBy = multi-user.target

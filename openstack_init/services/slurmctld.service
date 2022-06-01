@@ -1,9 +1,12 @@
 [Unit]
 Description = SLURM main controller service
-Wants = munge.service
+After=network-online.target munge.service slurmdbd.service
+Wants=network-online.target
 
 [Service]
+Type=simple
 ExecStart = /usr/bin/slurmctld.sh
+ExecReload=/bin/kill -HUP $MAINPID
 
 [Install]
 WantedBy = multi-user.target

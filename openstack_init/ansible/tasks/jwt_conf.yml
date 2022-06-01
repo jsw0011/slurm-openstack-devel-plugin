@@ -1,0 +1,27 @@
+# get token: scontrol token username=$USER
+- name: create /var/spool/slurm/ directory if not exists
+  become: True
+  ansible.builtin.file:
+    path: /var/spool/slurm/
+    state: directory
+    mode: '0755'
+    owner: "{{ slurm_user }}"
+    group: "{{ slurm_user }}"
+- name: create /var/spool/slurm/statesave directory if not exists
+  become: True
+  ansible.builtin.file:
+    path: /var/spool/slurm/statesave
+    state: directory
+    mode: '0755'
+    owner: "{{ slurm_user }}"
+    group: "{{ slurm_user }}"
+- name: generate key for jwt
+  become: True
+  shell: dd if=/dev/random of=/var/spool/slurm/statesave/jwt_hs256.key bs=32 count=1
+- name: change owner and permissions on file
+  become: true
+  ansible.builtin.file:
+    path: /var/spool/slurm/statesave/jwt_hs256.key
+    owner: "{{ slurm_user }}"
+    group: "{{ slurm_user }}"
+    mode: '0600'

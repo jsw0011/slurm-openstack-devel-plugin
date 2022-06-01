@@ -1,0 +1,14 @@
+[Unit]
+Description = SLURM DBD Daemon
+After=network-online.target munge.service mysql.service mysqld.service mariadb.service
+Wants=network-online.target
+
+[Service]
+ExecStart = /usr/bin/slurmdbd.sh
+ExecReload=/bin/kill -HUP $MAINPID
+Type = simple
+EnvironmentFile=-/etc/sysconfig/slurmdbd
+EnvironmentFile=-/etc/default/slurmdbd
+
+[Install]
+WantedBy = multi-user.target
