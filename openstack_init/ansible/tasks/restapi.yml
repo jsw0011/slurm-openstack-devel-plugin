@@ -1,0 +1,37 @@
+- name: install json-c and libyaml dependencies
+  become: True
+  yum:
+    name:
+      - json-c-devel
+      - automake
+    state: latest
+
+- name: clone http-parser
+  ansible.builtin.git:
+    repo: "https://github.com/nodejs/http-parser.git"
+    dest: "{{ slurm_install_folder }}/http_parser-c"
+    version: "v2.9.4"
+- name: install http-parser
+  become: True
+  community.general.make:
+    chdir: "{{ slurm_install_folder }}/http_parser-c"
+    target: install
+
+- name: clone libyaml
+  ansible.builtin.git:
+    repo: "https://github.com/yaml/libyaml"
+    dest: "{{ slurm_install_folder }}/libyaml"
+    version: "0.2.5"
+- name: autoconf bootstrap libyaml
+  command:
+    cmd: ./bootstrap
+    chdir: "{{ slurm_install_folder }}/libyaml"
+- name: configure bootstrap libyaml
+  command:
+    cmd: ./configure
+    chdir: "{{ slurm_install_folder }}/libyaml"
+- name: install libyaml
+  become: True
+  community.general.make:
+    chdir: "{{ slurm_install_folder }}/libyaml"
+    target: install

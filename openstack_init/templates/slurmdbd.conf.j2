@@ -1,0 +1,14 @@
+AuthType=auth/munge
+AuthAltTypes=auth/jwt
+AuthAltParameters=jwt_key=/var/spool/slurm/statesave/jwt_hs256.key
+DbdAddr={{ slurm_master_machines[0].ip }}
+DbdHost={{ slurm_master_machines[0].name }}
+SlurmUser={{ slurm_user }}
+DebugLevel=4
+LogFile=/var/log/slurm/slurmdbd.log
+PidFile=/var/run/slurmdbd.pid
+StorageType=accounting_storage/mysql
+StorageHost={{ slurm_master_machines[0].name }}
+StoragePass={{ mariadb_root_pass }}
+StorageUser={{ slurm_user }}
+StorageLoc={{ mariadb_db_acc_name }}

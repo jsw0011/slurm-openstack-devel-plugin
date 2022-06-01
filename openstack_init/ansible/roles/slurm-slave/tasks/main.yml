@@ -114,21 +114,21 @@
 
 - name: clone slurm
   ansible.builtin.git:
-    repo: "{{ slurm_git_repo }}"
-    dest: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
-    version: "{{ slurm_tag }}"
+   repo: "{{ slurm_git_repo }}"
+   dest: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
+   version: "{{ slurm_tag }}"
 - name: configure installation
   command:
-    cmd: ./configure --with-munge
-    chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
+   cmd: ./configure --with-munge --disable-debug --enable-silent-rules
+   chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
 - name: compile slurm
   community.general.make:
-    chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
-    target: all
+   chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
+   target: all
 - name: check slurm compilation
   community.general.make:
-    chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
-    target: check
+   chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
+   target: check
 - name: install compiled slurm
   become: True
   community.general.make:
@@ -147,7 +147,7 @@
 - name: set slurm configuration
   become: True
   copy:
-    content: "{{ slurm_configuration }}"
+    content: "{{ slurm_configuration }}\n"
     dest: /etc/slurm/slurm.conf
     owner: slurm
     mode: '0755'

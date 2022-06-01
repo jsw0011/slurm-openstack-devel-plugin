@@ -35,6 +35,10 @@
       - ncurses-devel
       - libibmad
       - libibumad
+      - libtool
+      - man2html
+      - libcurl-devel
+      - libjwt-devel
     state: latest
 - name: check randomness
   shell: rngd -r /dev/urandom
@@ -111,15 +115,105 @@
 #   ansible.builtin.systemd:
 #     name: firewalld
 #     state: reloaded
+
+# MariaDB
+- name: install MariaDB
+  become: True
+  yum:
+    name:
+      - mariadb-server
+      - mariadb-devel
+- name: copy configuration of MariaDB
+  become: True
+  ansible.builtin.copy:
+    src: "{{ slurm_openstack_files_path }}/my.cnf"
+    dest: /etc/my.cnf.d/my.cnf
+    owner: root
+    mode: '0644'
+- name: stop MariaDB service
+  become: True
+  ansible.builtin.systemd:
+    name: mariadb
+    state: stopped
+- name: init MariaDB state
+  become: True
+  ansible.builtin.file:
+    state: directory
+    path: /var/lib/mysql/
+- name: create back /var/lib/mysql/ directory for MariaDB
+  become: True
+  ansible.builtin.file:
+    path: /var/lib/mysql/
+    state: directory
+    mode: '0755'
+    owner: mysql
+    group: mysql
+- name: start MariaDB service
+  become: True
+  ansible.builtin.systemd:
+    name: mariadb
+    state: started
+- name: enable MariaDB service
+  become: True
+  ansible.builtin.systemd:
+    name: mariadb
+    enabled: True
+    masked: no
+- name: set password
+  become: True
+  command:
+    cmd: mysql -e "UPDATE mysql.user SET Password = PASSWORD('{{ mariadb_root_pass }}') WHERE User = 'root'"
+- name: drop anonymous users
+  become: True
+  command:
+    cmd: mysql -e "DROP USER ''@'localhost'"
+  ignore_errors: True
+- name: drop anonymous users
+  become: True
+  command:
+    cmd: mysql -e "DROP USER ''@'{{ slurm_master_machines[0].name }}'"
+  ignore_errors: True
+- name: drop demo database
+  become: True
+  command:
+    cmd: mysql -e "DROP DATABASE test"
+  ignore_errors: True
+- name: flush privileges
+  become: True
+  command:
+    cmd: mysql -e "FLUSH PRIVILEGES"
+
+# Install slurm
 - name: clone slurm
   ansible.builtin.git:
     repo: "{{ slurm_git_repo }}"
     dest: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
     version: "{{ slurm_tag }}"
-- name: configure installation
+
+- name: slurm REST API dependencies
+  include_tasks: "{{ slurm_repo_dir }}/ansible/tasks/restapi.yml"
+  when: slurm_rest_api_enabled
+
+- name: add user slurm
+  become: True
+  ansible.builtin.user:
+    name: "{{ slurm_user }}"
+
+- name: slurm REST API JWT key generation
+  include_tasks: "{{ slurm_repo_dir }}/ansible/tasks/jwt_conf.yml"
+
+- name: configure installation with REST API
   command:
-    cmd: ./configure --with-munge
+    cmd: ./configure --with-munge --disable-debug --enable-silent-rules --with-json=/usr/ --with-jwt=/usr/ --with-yaml=/usr/local/ --with-slurmrestd-port={{ slurm_rest_api_port }}
     chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
+  when: slurm_rest_api_enabled
+
+- name: configure installation without REST API
+  command:
+    cmd: ./configure --with-munge --with-jwt=/usr/ --disable-debug --enable-silent-rules
+    chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
+  when: (slurm_rest_api_enabled == False)
+
 - name: compile slurm
   community.general.make:
     chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
@@ -133,47 +227,134 @@
   community.general.make:
     chdir: "{{ slurm_install_folder }}/{{ slurm_git_repo_path }}"
     target: install
+
+- name: add user restapi user
+  become: True
+  ansible.builtin.user:
+    name: "{{ slurm_restapi_user }}"
+    group: slurm
+  when: slurm_rest_api_enabled
+
+# set mariaDB slurm user privileges BEGIN
+- name: set slurm user grants
+  become: True
+  command:
+    cmd: mysql -u root -p{{ mariadb_root_pass }} -e "grant all on {{ mariadb_db_acc_name }}.* TO '{{ slurm_user }}'@'{{ slurm_master_machines[0].name }}' identified by '{{ mariadb_root_pass }}' with grant option;"
+- name: create account DB
+  become: True
+  command:
+    cmd: mysql -u root -p{{ mariadb_root_pass }} -e "create database {{ mariadb_db_acc_name }}"
+# set mariaDB slurm user privileges END
+
+
+- name: create /var/log/slurm directory if not exists
+  become: True
+  ansible.builtin.file:
+    path: /var/log/slurm
+    state: directory
+    mode: '0755'
+    owner: "{{ slurm_user }}"
+- name: create /var/log/slurm/slurmdbd.log if not exists 
+  become: True
+  ansible.builtin.file:
+    state: touch
+    path: /var/log/slurm/slurmdbd.log
+    mode: '0644'
+    owner: "{{ slurm_user }}"
+
 - name: create /etc/slurm directory if not exists
   become: True
   ansible.builtin.file:
     path: /etc/slurm
     state: directory
     mode: '0755'
-- name: add user slurm
-  become: True
-  ansible.builtin.user:
-    name: slurm
+    owner: "{{ slurm_user }}"
 - name: prepare slurm.conf
   become: True
   ansible.builtin.template:
     src: "{{ slurm_openstack_templates_path }}/slurm.conf.j2"
     dest: /etc/slurm/slurm.conf
-    owner: slurm
-    mode: '0755'
+    owner: "{{ slurm_user }}"
+    group: slurm
+    mode: '0644'
 - name: store slurm generated configuration
   shell: cat /etc/slurm/slurm.conf
   register: slurm_configuration
-- name: copy slurmctld.service
+- name: copy cgroup.conf
   become: True
   ansible.builtin.copy:
     src: "{{ slurm_openstack_files_path }}/cgroup.conf"
     dest: /etc/slurm/cgroup.conf
+    owner: "{{ slurm_user }}"
+    mode: '0600'
+
+- name: prepare and copy slurmdbd.conf
+  become: True
+  ansible.builtin.template:
+    src: "{{ slurm_openstack_templates_path }}/slurmdbd.conf.j2"
+    dest: /etc/slurm/slurmdbd.conf
+    owner: "{{ slurm_user }}"
+    mode: '0600'
+- name: symlink to slurmdbd.conf
+  become: True
+  ansible.builtin.file:
+    src: /etc/slurm/slurmdbd.conf
+    dest: /usr/local/etc/slurmdbd.conf
     owner: slurm
+    state: hard
+    mode: '0600'
+
+# slurmdbd
+- name: create directory for logs
+  become: True
+  ansible.builtin.file:
+    path: /var/log/slurm
+    state: directory
     mode: '0755'
+- name: copy slurmdbd.service
+  become: True
+  ansible.builtin.copy:
+    src: "{{ slurm_openstack_services_path }}/slurmdbd.service"
+    dest: /etc/systemd/system/slurmdbd.service
+    owner: root
+    mode: '0664'
+- name: copy slurmdbd service script
+  become: True
+  ansible.builtin.copy:
+    src: "{{ slurm_openstack_services_path }}/slurmdbd.sh"
+    dest: /usr/bin/slurmdbd.sh
+    owner: root
+    mode: '0700'
+- name: reset SElinux attributes
+  become: True
+  command: restorecon /usr/bin/slurmdbd.sh
+- name: enable slurmdbd service
+  become: True
+  ansible.builtin.systemd:
+    name: slurmdbd
+    enabled: True
+    masked: no
+- name: start slurmdbd service
+  become: True
+  ansible.builtin.systemd:
+    name: slurmdbd
+    state: started
+
+# slurmctld
 - name: create /var/spool/slurmctld directory if not exists
   become: True
   ansible.builtin.file:
     path: /var/spool/slurmctld
     state: directory
     mode: '0755'
-    owner: slurm
+    owner: "{{ slurm_user }}"
     recurse: True
 - name: touch and set owner to slurm user directories of /var/log/slurm_jobacct.log /var/log/slurm_jobcomp.log and /var/log/slurmctld.log
   become: True
   ansible.builtin.file:
     state: touch
     path: "{{ item }}"
-    owner: slurm
+    owner: "{{ slurm_user }}"
   loop:
     - /var/log/slurm_jobacct.log
     - /var/log/slurm_jobcomp.log
@@ -207,6 +388,31 @@
     name: slurmctld
     state: started
 
+# slurm rest api BEGIN
+- name: copy slurmrestd.service
+  become: True
+  ansible.builtin.template:
+    src: "{{ slurm_openstack_services_path }}/slurmrestd.service.j2"
+    dest: /etc/systemd/system/slurmrestd.service
+    owner: root
+    mode: '0664'
+  when: slurm_rest_api_enabled
+
+- name: enable slurmrestd service
+  become: True
+  ansible.builtin.systemd:
+    name: slurmrestd
+    enabled: True
+    masked: no
+  when: slurm_rest_api_enabled
+- name: start slurmrestd service
+  become: True
+  ansible.builtin.systemd:
+    name: slurmrestd
+    state: started
+  when: slurm_rest_api_enabled
+# slurm rest api END
+
 - name: create /etc/environment if not exists 
   become: True
   ansible.builtin.file:
@@ -221,6 +427,7 @@
     insertbefore: EOF
     block: |
       SLURM_CONF=/etc/slurm/slurm.conf
+
 
 ## shared variables
 - name: "Add shared variables to dummy host"

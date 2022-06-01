@@ -30,6 +30,21 @@ parameters:
     label: Git project address
     default: https://github.com/jsw0011/slurm-openstack-devel-plugin.git
     description: Please enter the git url for slurm-openstack-devel-plugin or your own modified repository
+  git_project_branch:
+    type: string
+    label: Git project branch
+    default: master
+    description: Please provide which branch to retrieve from repository
+  enable_slurm_rest_api:
+    type: string
+    label: Enable Slurm REST API
+    constraints:
+      - allowed_values: [ "True", "False" ]
+    default: "False"
+  slurm_rest_api_port:
+    type: number
+    label: Slurm REST API port
+    default: 6820
 resources:
   slurm_company_ssh_key:
     type: OS::Nova::KeyPair
@@ -81,14 +96,23 @@ resources:
               get_attr: [slurm_company_ssh_key, private_key]
             git_address: 
               get_param: git_project_address
+            git_branch: 
+              get_param: git_project_branch
+            restapi_enabled:
+              get_param: enable_slurm_rest_api
+            slurm_restapi_port:
+              get_param: slurm_rest_api_port
           template: |
             #!/usr/bin/bash
-
-            yum makecache
-            yum install -y epel-release python3
-            yum install -y jq git ansible-2.9.27-1.el8.noarch ansible-collection-community-general.noarch
-
+            
             __INSTALL_DIR="/tmp/slurm-install"
+            
+            yum makecache
+            yum install -y epel-release
+            yum install -y jq git python3 cmake
+
+            yum install -y ansible ansible-collection-community-general.noarch
+
             mkdir $__INSTALL_DIR
             meta_file="$__INSTALL_DIR/meta_data.json"
             curl http://169.254.169.254/openstack/latest/meta_data.json > $meta_file # download metadata
@@ -98,13 +122,12 @@ resources:
 
             __MASTER_NAME=masterNode
     
-            _GIT_ADDRESS="git_address"
             _MASTER_IP=`python3 -c "import socket; print(socket.gethostbyname(socket.gethostname()))"`
 
             #repo with playbook and role for ansible
             __SLURM_REPO_DIR="$__INSTALL_DIR/slurm-openstack"
             mkdir $__SLURM_REPO_DIR
-            git clone "$_GIT_ADDRESS" $__SLURM_REPO_DIR 
+            git clone --depth 1 --branch "git_branch" "git_address" $__SLURM_REPO_DIR 
             
             __scripts_path=$__SLURM_REPO_DIR/openstack_init/scripts
             chmod +x $__scripts_path/*
@@ -139,14 +162,17 @@ resources:
             slurm_slaves_machines:
             $____SLAVE_HOSTS_INVENTORY
             ssh_compute_priv_key_file: /root/slurm-company_priv_key
+            slurm_repo_dir: $__SLURM_REPO_DIR/openstack_init/
             slurm_install_folder: $__INSTALL_DIR
             slurm_openstack_files_path: $__SLURM_REPO_DIR/openstack_init/files
             slurm_openstack_services_path: $__SLURM_REPO_DIR/openstack_init/services
             slurm_openstack_templates_path: $__SLURM_REPO_DIR/openstack_init/templates
-            slurm_openstack_scripts_path: $__scripts_path" | tee -a $__SLURM_REPO_DIR/openstack_init/ansible/external_variables.yml
+            slurm_openstack_scripts_path: $__scripts_path
+            slurm_rest_api_enabled: restapi_enabled
+            slurm_rest_api_port: slurm_restapi_port" | tee -a $__SLURM_REPO_DIR/openstack_init/ansible/external_variables.yml
 
             # run ansible
-            ansible-playbook -vvv -i $__SLURM_REPO_DIR/openstack_init/ansible/inventory.yml -e @$__SLURM_REPO_DIR/openstack_init/ansible/external_variables.yml $__SLURM_REPO_DIR/openstack_init/ansible/playbook.yml
+            ansible-playbook -i $__SLURM_REPO_DIR/openstack_init/ansible/inventory.yml -e @$__SLURM_REPO_DIR/openstack_init/ansible/external_variables.yml $__SLURM_REPO_DIR/openstack_init/ansible/playbook.yml
 outputs:
   slurm_company_priv_key:
     description: Private key
