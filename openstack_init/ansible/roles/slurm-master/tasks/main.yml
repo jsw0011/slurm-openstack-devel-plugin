@@ -3,6 +3,20 @@
 #   yum:
 #     name: '*'
 #     state: latest
+- name: install python
+  become: true
+  yum:
+    name:
+      - python3
+
+- name: add user slurm
+  become: True
+  ansible.builtin.user:
+    name: "{{ slurm_user }}"
+
+- name: install shared NFS disk
+  import_tasks: nfs.yml
+
 - name: install munge dependencies
   become: True
   yum:
@@ -14,7 +28,6 @@
       - rng-tools
       - munge-devel
       - perl
-      - python3
       #- firewalld
     state: latest
     enablerepo: powertools
@@ -194,11 +207,6 @@
   include_tasks: "{{ slurm_repo_dir }}/ansible/tasks/restapi.yml"
   when: slurm_rest_api_enabled
 
-- name: add user slurm
-  become: True
-  ansible.builtin.user:
-    name: "{{ slurm_user }}"
-
 - name: slurm REST API JWT key generation
   include_tasks: "{{ slurm_repo_dir }}/ansible/tasks/jwt_conf.yml"
 
@@ -232,7 +240,7 @@
   become: True
   ansible.builtin.user:
     name: "{{ slurm_restapi_user }}"
-    group: slurm
+    # group: slurm
   when: slurm_rest_api_enabled
 
 # set mariaDB slurm user privileges BEGIN

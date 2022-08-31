@@ -9,6 +9,28 @@ parameters:
   def_network:
     label: Network
     type: string
+  def_subnet_mask:
+    label: Subnet mask for compute
+    description: Subnet mask for compute nodes
+    type: string
+    default: 10.8.1.0/24
+  def_router:
+    label: Router for subnet
+    type: string
+    description: Interface for compute nodes will be created on defined router
+  def_master_node_subnet_ip:
+    label: Fixed ip
+    description: Fixed ip of master node in compute subnet
+    type: string
+    default: 10.8.1.10
+  def_dns1_subnet:
+    label: 1. DNS for compute subnet
+    type: string
+    default: 8.8.8.8
+  def_dns2_subnet:
+    label: 2. DNS for compute subnet
+    type: string
+    default: 8.8.4.4
   def_flavor:
     type: string
     label: Flavor of the compute nodes
@@ -20,7 +42,7 @@ parameters:
   slurm_controller_ssh_key:
     type: string
     label: Existing Key Name for controller 
-    description: Name of key pair for accessint a controlles instance
+    description: Name of key pair for accessing a controlles instance
   slurm_company_ssh_key_name:
     type: string
     label: Key Name for New Key Pair
@@ -66,7 +88,9 @@ resources:
           compute2: { get_attr: [compute2, first_address] } # user should add metadata ip
         #compute_ssh_key: { get_attr: [slurm_company_ssh_key, private_key] }
       networks:
-        - network: { get_param: def_network }
+        - 
+          subnet:  { get_resource: compute_subnet }
+          fixed_ip: { get_param: def_master_node_subnet_ip }
   # define wanted compute nodes by user
   compute1:
     type: OS::Nova::Server
@@ -75,7 +99,7 @@ resources:
       image: { get_param: def_image }
       key_name: { get_resource : slurm_company_ssh_key }
       networks:
-        - network: { get_param: def_network }
+        - subnet:  { get_resource: compute_subnet }
   compute2:
     type: OS::Nova::Server
     properties:
@@ -83,8 +107,24 @@ resources:
       image: { get_param: def_image }
       key_name: { get_resource : slurm_company_ssh_key }
       networks:
-        - network: { get_param: def_network }
+        - subnet:  { get_resource: compute_subnet }
   # end - define wanted compute nodes by user
+
+  compute_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      network_id: { get_param: def_network }
+      cidr: { get_param: def_subnet_mask } #"10.8.1.0/24"
+      dns_nameservers: [{ get_param: def_dns1_subnet },{ get_param: def_dns2_subnet }]
+      ip_version: 4
+  compute_subnet_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router: { get_param: def_router }
+      subnet: { get_resource: compute_subnet }
+          
+          
+  # BOOT SCRIPT
   boot_script:
     type: OS::Heat::SoftwareConfig
     properties:
@@ -102,6 +142,10 @@ resources:
               get_param: enable_slurm_rest_api
             slurm_restapi_port:
               get_param: slurm_rest_api_port
+            __inner_net:
+              get_attr: [compute_subnet, cidr]
+            __fixed_ip:
+              get_param: def_master_node_subnet_ip
           template: |
             #!/usr/bin/bash
             
@@ -122,7 +166,7 @@ resources:
 
             __MASTER_NAME=masterNode
     
-            _MASTER_IP=`python3 -c "import socket; print(socket.gethostbyname(socket.gethostname()))"`
+            _MASTER_IP=__fixed_ip
 
             #repo with playbook and role for ansible
             __SLURM_REPO_DIR="$__INSTALL_DIR/slurm-openstack"
@@ -169,6 +213,7 @@ resources:
             slurm_openstack_templates_path: $__SLURM_REPO_DIR/openstack_init/templates
             slurm_openstack_scripts_path: $__scripts_path
             slurm_rest_api_enabled: restapi_enabled
+            inner_net_mask: __inner_net
             slurm_rest_api_port: slurm_restapi_port" | tee -a $__SLURM_REPO_DIR/openstack_init/ansible/external_variables.yml
 
             # run ansible

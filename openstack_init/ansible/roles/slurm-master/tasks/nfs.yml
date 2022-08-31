@@ -1,0 +1,59 @@
+---
+- name: Intro
+  ansible.builtin.debug:
+    msg: Ansible for NFS Server
+- name: yum install
+  ansible.builtin.yum:
+    name:
+    - nfs-utils
+    - nfs4-acl-tools
+    state: latest
+  become: True
+- name: Start nfs-server.service
+  ansible.builtin.systemd:
+    name: nfs-server.service
+    state: started
+    enabled: yes
+  become: True
+- name: Check nfs-server.service
+  ansible.builtin.shell:
+    cmd: "systemctl status nfs-server.service"
+  become: True
+- name: mkdir /mnt/nfs_shares/data
+  ansible.builtin.file:
+    path: /mnt/nfs_shares/data
+    state: directory
+    recurse: yes
+    owner: "{{ slurm_user }}"
+    mode: '0777'
+  become: True
+- name: Add a line to a /etc/exports
+  ansible.builtin.lineinfile:
+    path: /etc/exports
+    line: /mnt/nfs_shares/data  	{{ inner_net_mask }}(rw,sync)
+    create: yes
+  become: True
+- name: Exportfs -arv
+  ansible.builtin.shell:
+    cmd: "exportfs -arv"
+  become: True
+- name: Check exportfs
+  ansible.builtin.shell:
+    cmd: "exportfs  -s"
+  become: True
+# - name: Firewall-cmd nfs
+#   ansible.builtin.shell:
+#     cmd: "firewall-cmd --permanent --add-service=nfs"
+#   become: True
+# - name: Firewall-cmd rpc-bind
+#   ansible.builtin.shell:
+#     cmd: "firewall-cmd --permanent --add-service=rpc-bind"
+#   become: True
+# - name: Firewall-cmd mountd
+#   ansible.builtin.shell:
+#     cmd: "firewall-cmd --permanent --add-service=mountd"
+#   become: True
+# - name: Firewall-cmd reload
+#   ansible.builtin.shell:
+#     cmd: "firewall-cmd --reload"
+#   become: True

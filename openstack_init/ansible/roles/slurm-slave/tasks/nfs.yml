@@ -1,0 +1,35 @@
+---
+- name: Intro
+  ansible.builtin.debug:
+    msg: Ansible for NFS Client
+- name: yum install
+  ansible.builtin.yum:
+    name:
+    - nfs-utils
+    - nfs4-acl-tools
+    state: latest
+  become: True
+- name: showmount
+  ansible.builtin.shell:
+    cmd: "showmount -e masterNode"
+  become: True
+- name: mkdir /mnt/nfs_shares/data
+  ansible.builtin.file:
+    path: /mnt/nfs_shares/data
+    state: directory
+    recurse: yes
+    owner: "{{ slurm_user }}"
+    mode: '0777'
+  become: True
+- name: mount /mnt/nfs_shares/data
+  ansible.posix.mount:
+    src: "masterNode:/mnt/nfs_shares/data"
+    path: /mnt/nfs_shares/data
+    opts: rw,sync,hard
+    boot: yes
+    state: mounted
+    fstype: nfs
+  become: True
+- name: control mount nfs
+  ansible.builtin.shell:
+    cmd: "mount | grep nfs"
