@@ -8,7 +8,7 @@ that it can effortlessly stop or update our cluster stack. I used the Heat Orche
 configuration. The installation and configuration supports the CentOS 8 Stream, but can be quite
 simply adapted for other operating systems supported by the Slurm (batch scheduler).
 
-Read the [`article`](https://github.com/jsw0011/slurm-openstack-devel-plugin/blob/main/2022-PPFIT-SlurmOpenStackPluginDevel.pdf) for more information.
+The [`article`](https://github.com/jsw0011/slurm-openstack-devel-plugin/blob/main/2022-PPFIT-SlurmOpenStackPluginDevel.pdf) with further information is available.
 
 Installation can be watched by `tail -f /var/log/cloud-init-output.log` in master node.
 User, who would like to e.g. `sbatch` executable or script, should be in the `slurm` group. JWT token can be obtained by `scontrol token username=<username>` as superuser.
